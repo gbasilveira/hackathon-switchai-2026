@@ -4,6 +4,7 @@
  * Connects real LLM agents (@sre-agent, @sec-agent, @finops-agent) powered by Google Gemini
  * and optional Slack Incoming Webhooks / Event Subscriptions to SwitchCortexRuntime & MCP tools.
  */
+import { IntentVerdict } from './intent.js';
 import { CallerPrincipal, SwitchCortexRuntime, WorkflowInstance } from '../governance/runtime.js';
 export interface LiveChatRequest {
     readonly prompt: string;
@@ -20,7 +21,9 @@ export interface LiveChatResult {
     readonly llmProvider: 'gemini-live' | 'heuristic-fallback';
     readonly modelUsed: string;
     readonly slackMirrored: boolean;
-    readonly instance: WorkflowInstance;
+    /** Undefined when the intent gate blocked execution (no workflow started). */
+    readonly instance?: WorkflowInstance;
+    readonly intent: IntentVerdict;
     readonly agentCalls: {
         readonly agentId: string;
         readonly elementId: string;

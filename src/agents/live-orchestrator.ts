@@ -9,6 +9,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { FeelValue } from '../feel/engine.js';
+import { classifyIntent, IntentVerdict } from './intent.js';
 import { CallerPrincipal, RoomMessage, SwitchCortexRuntime, WorkflowInstance } from '../governance/runtime.js';
 
 export interface LiveChatRequest {
@@ -27,7 +28,9 @@ export interface LiveChatResult {
   readonly llmProvider: 'gemini-live' | 'heuristic-fallback';
   readonly modelUsed: string;
   readonly slackMirrored: boolean;
-  readonly instance: WorkflowInstance;
+  /** Undefined when the intent gate blocked execution (no workflow started). */
+  readonly instance?: WorkflowInstance;
+  readonly intent: IntentVerdict;
   readonly agentCalls: {
     readonly agentId: string;
     readonly elementId: string;
@@ -212,12 +215,9 @@ interface SreTriageSchema {
 
 function heuristicSreTriage(prompt: string): SreTriageSchema {
   const lower = prompt.toLowerCase();
-  const env: 'dev' | 'staging' | 'prod' =
-    lower.includes('prod') || lower.includes('production') || lower.includes('produção')
-      ? 'prod'
-      : lower.includes('dev')
-        ? 'dev'
-        : 'staging';
+  // Fail-closed: unknown environment is treated as prod (strictest lane), never as staging.
+  const verdict = classifyIntent(prompt);
+  const env: 'dev' | 'staging' | 'prod' = verdict.env ?? 'prod';
 
   const costMatch = prompt.match(/\$\s*([0-9][0-9,]*)/);
   const parsedCost = costMatch?.[1] ? Number(costMatch[1].replace(/,/g, '')) : env === 'prod' ? 1200 : 45;
@@ -239,7 +239,8 @@ function heuristicSreTriage(prompt: string): SreTriageSchema {
     lower.includes('external') ||
     lower.includes('checkout');
 
-  const confidence = touches_pii && public_exposure ? 0.72 : 0.95;
+  // Invented facts lower confidence: an unstated cost can never reach the Green Lane (>= 0.80).
+  const confidence = touches_pii && public_exposure ? 0.72 : verdict.costStated ? 0.95 : 0.75;
 
   return {
     title: prompt.slice(0, 72),
@@ -269,6 +270,19 @@ export async function runLiveChatWorkflow(
 
   const agentCalls: LiveChatResult['agentCalls'] = [];
 
+  // 0. Deterministic intent gate (fail-closed): only explicit operational requests start a workflow.
+  const intent = classifyIntent(req.prompt);
+  if (intent.intent !== 'ops_request') {
+    return {
+      ok: true,
+      llmProvider: 'heuristic-fallback',
+      modelUsed: 'intent-gate',
+      slackMirrored: false,
+      intent,
+      agentCalls,
+    };
+  }
+
   // 1. Ask @sre-agent (Gemini) to triage the user's natural language request
   const sreSystemPrompt = `You are @sre-agent (SRE Department) inside a Switch AI Room (#switch-ops-room) governed by SwitchCortex BPMN 2.0 & DMN 1.3.
 Analyze the user's operational request and return ONLY a JSON object with these exact keys:
@@ -289,10 +303,8 @@ Analyze the user's operational request and return ONLY a JSON object with these 
   const triage = triageCall.data;
 
   // Normalize values to protect against unexpected LLM types
-  const normalizedEnv: 'dev' | 'staging' | 'prod' =
-    triage.env === 'dev' || triage.env === 'staging' || triage.env === 'prod'
-      ? triage.env
-      : heuristicSreTriage(req.prompt).env;
+  // The explicit environment in the user's text wins over the LLM's reading of it.
+  const normalizedEnv: 'dev' | 'staging' | 'prod' = intent.env ?? 'prod';
   const normalizedCost = typeof triage.cost_delta === 'number' && Number.isFinite(triage.cost_delta)
     ? Math.max(0, Math.round(triage.cost_delta))
     : heuristicSreTriage(req.prompt).cost_delta;
@@ -302,9 +314,11 @@ Analyze the user's operational request and return ONLY a JSON object with these 
   const normalizedPublic = typeof triage.public_exposure === 'boolean'
     ? triage.public_exposure
     : heuristicSreTriage(req.prompt).public_exposure;
+  // The LLM may only lower confidence, never raise it above the deterministic cap.
+  const confidenceCap = heuristicSreTriage(req.prompt).confidence;
   const normalizedConf = typeof triage.confidence === 'number' && triage.confidence >= 0 && triage.confidence <= 1
-    ? Number(triage.confidence.toFixed(2))
-    : 0.95;
+    ? Math.min(Number(triage.confidence.toFixed(2)), confidenceCap)
+    : confidenceCap;
 
   const startRes = runtime.startWorkflow({
     title: triage.title || req.prompt.slice(0, 68),
@@ -353,6 +367,7 @@ Analyze the user's operational request and return ONLY a JSON object with these 
     modelUsed: triageCall.model,
     slackMirrored,
     instance: wf,
+    intent,
     agentCalls,
   };
 }

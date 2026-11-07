@@ -245,7 +245,9 @@ export function createCortexHttpServer(initialRuntime?: SwitchCortexRuntime): {
             roomChannel: '#switch-ops-room',
           });
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: true, instanceId: liveRes.instance.instanceId, status: liveRes.instance.status }));
+          res.end(JSON.stringify(liveRes.instance
+            ? { ok: true, instanceId: liveRes.instance.instanceId, status: liveRes.instance.status }
+            : { ok: true, executed: false, intent: liveRes.intent.intent, reply: liveRes.intent.reply }));
           return;
         }
 

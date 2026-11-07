@@ -53,7 +53,7 @@ npm run demo
 # 2. Run the Formal Static Verifier (DMN 1.3 + BPMN 2.0 + Counterexample Proofs)
 npm run verify
 
-# 3. Run the automated test suite (18 unit & integration tests across FEEL, DMN, BPMN, Governance & MCP)
+# 3. Run the automated test suite (23 unit & integration tests across FEEL, DMN, BPMN, Governance & MCP)
 npm test
 
 # 4. Launch the Streamable HTTP MCP Server + Interactive Web Governance Studio
@@ -156,7 +156,7 @@ switch-cortex/
 │   ├── server/http.ts           # Streamable HTTP MCP server + Interactive Web Governance Studio
 │   └── cli/index.ts             # CLI entrypoint (demo, verify, mcp, serve, export-blueprints)
 ├── switch-workspace/            # Per-agent CLAUDE.md briefs, .mcp.json, and illustrative YAML reference configs
-└── test/                        # 18 automated unit & integration tests (node:test)
+└── test/                        # 23 automated unit & integration tests (node:test)
 ```
 
 ## 📄 License

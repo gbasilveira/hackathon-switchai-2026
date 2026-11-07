@@ -112,22 +112,33 @@ else if (cmd === 'live') {
         roomChannel: '#switch-ops-room',
         simulateRogueAgentAttempts: true,
     });
+    if (!liveRes.instance) {
+        console.log(`  ${C.yellow}${C.bold}No workflow started${C.reset} (${liveRes.intent.intent}: ${liveRes.intent.reason})`);
+        console.log(`  ${liveRes.intent.reply ?? ''}\n`);
+        process.exit(0);
+    }
+    const inst = liveRes.instance;
+    if (!inst)
+        throw new Error('unreachable: intent gate returned no workflow');
     console.log(`${C.magenta}${C.bold}━━━ Live Agent Invocations (Provider: ${liveRes.llmProvider} · Model: ${liveRes.modelUsed}) ━━━${C.reset}`);
     for (const call of liveRes.agentCalls) {
         console.log(`  ${C.green}•${C.reset} ${C.bold}${call.agentId}${C.reset} completed BPMN task \`${call.elementId}\` via ${C.cyan}${call.provider}${C.reset} (${call.latencyMs}ms)`);
     }
     // If awaiting human sign-off, complete with @eng-manager approval so the full live flow finishes
-    if (liveRes.instance.status === 'awaiting_human') {
-        const reqApprover = String(liveRes.instance.variables['required_approver'] ?? '@eng-manager');
+    if (inst.status === 'awaiting_human' && process.env['CORTEX_DEMO_AUTO_APPROVE'] !== '1') {
+        console.log(`  ${C.yellow}Awaiting human approval from ${String(inst.variables['required_approver'] ?? '@eng-manager')} — not auto-approved (set CORTEX_DEMO_AUTO_APPROVE=1 for demo only).${C.reset}`);
+    }
+    else if (inst.status === 'awaiting_human') {
+        const reqApprover = String(inst.variables['required_approver'] ?? '@eng-manager');
         await decideHumanGateAndContinue(runtime, {
-            instanceId: liveRes.instance.instanceId,
+            instanceId: inst.instanceId,
             caller: { id: reqApprover, kind: 'human', department: 'Executive' },
             approved: true,
             comment: `Approved live in Switch Room by ${reqApprover} after reviewing @sec-agent and @finops-agent Gemini audits.`,
         });
     }
-    console.log(`\n  ${C.cyan}${C.bold}Switch Room Transcript (${liveRes.instance.roomChannel} · ${liveRes.instance.instanceId} · Status: ${liveRes.instance.status}):${C.reset}`);
-    for (const msg of liveRes.instance.roomTranscript) {
+    console.log(`\n  ${C.cyan}${C.bold}Switch Room Transcript (${inst.roomChannel} · ${inst.instanceId} · Status: ${inst.status}):${C.reset}`);
+    for (const msg of inst.roomTranscript) {
         const color = msg.senderKind === 'human' ? C.green : msg.senderKind === 'cortex' ? C.yellow : C.cyan;
         console.log(`    ${msg.badge} ${color}${C.bold}${msg.sender}${C.reset} ${C.dim}[${msg.department}]${C.reset}: ${msg.text}`);
     }
