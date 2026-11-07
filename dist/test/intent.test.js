@@ -32,4 +32,16 @@ test('unstated cost can never take the Green Lane', async () => {
     assert.ok(res.instance);
     assert.notEqual(res.instance.variables['verdict'], 'auto_approve');
 });
+test('MCP cortex_start_workflow refuses non-executable chat', async () => {
+    const { executeMcpTool } = await import('../src/mcp/server.js');
+    const rt = new SwitchCortexRuntime();
+    const bad = executeMcpTool(rt, 'cortex_start_workflow', {
+        title: 'Who are you', initialMessage: 'quem são vocês e o que fazem', callerId: '@sre-agent', callerKind: 'agent', department: 'SRE',
+    });
+    assert.equal(bad.isError, true);
+    const good = executeMcpTool(rt, 'cortex_start_workflow', {
+        title: 'Scale indexer', initialMessage: 'scale staging-search-indexer to 4 pods in staging', callerId: '@sre-agent', callerKind: 'agent', department: 'SRE',
+    });
+    assert.equal(good.isError, false);
+});
 //# sourceMappingURL=intent.test.js.map

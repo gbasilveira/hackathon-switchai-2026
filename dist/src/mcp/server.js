@@ -4,6 +4,7 @@
  * Exposes 12 deterministic governance, BPMN 2.0 workflow, DMN 1.3 decision,
  * formal verification, human-only inbox, and supervision tools to Switch AI Room agents.
  */
+import { classifyIntent } from '../agents/intent.js';
 import * as readline from 'node:readline';
 import { exportBpmnToXml, verifyBpmnSoundness, } from '../bpmn/engine.js';
 import { DEFAULT_BPMN_PROCESS, DEFAULT_DMN_TABLE, } from '../blueprints/defaults.js';
@@ -20,7 +21,7 @@ export const CORTEX_MCP_TOOLS = [
     },
     {
         name: 'cortex_start_workflow',
-        description: 'Start a new multi-department BPMN 2.0 workflow instance in a Switch AI Room.',
+        description: 'Start a new multi-department BPMN 2.0 workflow instance in a Switch AI Room. Pass the user\'s original words as initialMessage; questions, greetings or requests without an explicit action, target and environment are refused (ERR_INTENT_NOT_EXECUTABLE).',
         inputSchema: {
             type: 'object',
             properties: {
@@ -207,6 +208,22 @@ export function executeMcpTool(runtime, toolName, args) {
                 return { isError: false, result: runtime.listBlueprints() };
             }
             case 'cortex_start_workflow': {
+                // Fail-closed intent gate: pass the user's ORIGINAL words as initialMessage.
+                const userText = typeof args['initialMessage'] === 'string' && args['initialMessage'].trim()
+                    ? args['initialMessage']
+                    : String(args['title'] ?? '');
+                const gate = classifyIntent(userText);
+                if (gate.intent !== 'ops_request') {
+                    return {
+                        isError: true,
+                        result: {
+                            ok: false,
+                            code: 'ERR_INTENT_NOT_EXECUTABLE',
+                            message: `No workflow started (${gate.intent}: ${gate.reason}). Provide the user's original request as initialMessage with an explicit action, target and environment.`,
+                            reply: gate.reply,
+                        },
+                    };
+                }
                 const caller = {
                     id: String(args['callerId'] ?? '@alice-devops'),
                     kind: args['callerKind'] === 'agent' ? 'agent' : 'human',

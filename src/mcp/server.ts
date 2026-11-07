@@ -5,6 +5,7 @@
  * formal verification, human-only inbox, and supervision tools to Switch AI Room agents.
  */
 
+import { classifyIntent } from '../agents/intent.js';
 import * as readline from 'node:readline';
 import {
   BpmnProcessDefinition,
@@ -44,7 +45,7 @@ export const CORTEX_MCP_TOOLS: readonly McpToolDescriptor[] = [
   {
     name: 'cortex_start_workflow',
     description:
-      'Start a new multi-department BPMN 2.0 workflow instance in a Switch AI Room.',
+      'Start a new multi-department BPMN 2.0 workflow instance in a Switch AI Room. Pass the user\'s original words as initialMessage; questions, greetings or requests without an explicit action, target and environment are refused (ERR_INTENT_NOT_EXECUTABLE).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -247,6 +248,22 @@ export function executeMcpTool(
       }
 
       case 'cortex_start_workflow': {
+        // Fail-closed intent gate: pass the user's ORIGINAL words as initialMessage.
+        const userText = typeof args['initialMessage'] === 'string' && args['initialMessage'].trim()
+          ? args['initialMessage']
+          : String(args['title'] ?? '');
+        const gate = classifyIntent(userText);
+        if (gate.intent !== 'ops_request') {
+          return {
+            isError: true,
+            result: {
+              ok: false,
+              code: 'ERR_INTENT_NOT_EXECUTABLE',
+              message: `No workflow started (${gate.intent}: ${gate.reason}). Provide the user's original request as initialMessage with an explicit action, target and environment.`,
+              reply: gate.reply,
+            },
+          };
+        }
         const caller: CallerPrincipal = {
           id: String(args['callerId'] ?? '@alice-devops'),
           kind: args['callerKind'] === 'agent' ? 'agent' : 'human',
