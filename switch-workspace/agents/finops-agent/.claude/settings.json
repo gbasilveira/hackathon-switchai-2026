@@ -1,0 +1,6 @@
+{
+  "permissions": {
+    "allow": ["mcp__switch-cortex", "mcp__switch-docs"],
+    "deny": ["Bash", "Write", "Edit", "WebFetch", "WebSearch"]
+  }
+}
