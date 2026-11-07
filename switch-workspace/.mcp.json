@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "switch-cortex": {
+      "command": "node",
+      "args": ["./dist/src/cli/index.js", "mcp"],
+      "env": {
+        "SWITCH_ROOM_CHANNEL": "#switch-ops-room"
+      }
+    },
+    "switch-docs": {
+      "type": "http",
+      "url": "https://docs.switchagents.ai/mcp"
+    }
+  }
+}

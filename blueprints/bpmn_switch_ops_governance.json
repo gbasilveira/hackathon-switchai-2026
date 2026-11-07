@@ -1,0 +1,241 @@
+{
+  "id": "bpmn_switch_ops_governance",
+  "version": "1.0.0",
+  "name": "Switch Room Multi-Department Release & FinOps/SecOps Workflow",
+  "description": "Orchestrates @sre-agent, @sec-agent, @finops-agent, and human executives inside a Switch AI Room using deterministic BPMN 2.0 tokens and DMN 1.3 gates.",
+  "elements": [
+    {
+      "id": "start_request",
+      "kind": "startEvent",
+      "name": "Switch Room Request Received"
+    },
+    {
+      "id": "task_sre_triage",
+      "kind": "serviceTask",
+      "name": "SRE Triage & Telemetry Extraction",
+      "description": "@sre-agent inspects logs, infrastructure diff, and blast radius",
+      "executor": {
+        "kind": "agent",
+        "actor": "@sre-agent",
+        "department": "SRE",
+        "requiredOutputs": [
+          "env",
+          "cost_delta",
+          "touches_pii",
+          "public_exposure",
+          "confidence"
+        ],
+        "compensateAction": "revert_sre_triage_workspace"
+      }
+    },
+    {
+      "id": "rule_dmn_gate",
+      "kind": "businessRuleTask",
+      "name": "DMN 1.3 Governance Policy Gate",
+      "description": "Evaluates dmn_release_and_infra_governance deterministically",
+      "decisionRef": "dmn_release_and_infra_governance",
+      "resultVariable": "governance"
+    },
+    {
+      "id": "gw_verdict_route",
+      "kind": "exclusiveGateway",
+      "name": "Route by DMN Verdict"
+    },
+    {
+      "id": "gw_dept_fork",
+      "kind": "parallelGateway",
+      "name": "Fork Parallel Multi-Department Review"
+    },
+    {
+      "id": "task_sec_audit",
+      "kind": "serviceTask",
+      "name": "Security & Compliance Audit",
+      "description": "@sec-agent scans IAM diff, CVE posture, and network boundaries",
+      "executor": {
+        "kind": "agent",
+        "actor": "@sec-agent",
+        "department": "Security",
+        "requiredOutputs": [
+          "sec_approved",
+          "sec_notes"
+        ],
+        "compensateAction": "revoke_temporary_security_clearance"
+      }
+    },
+    {
+      "id": "task_finops_audit",
+      "kind": "serviceTask",
+      "name": "FinOps Cloud Cost & Quota Review",
+      "description": "@finops-agent validates department budget envelope and reserves cloud quota",
+      "executor": {
+        "kind": "agent",
+        "actor": "@finops-agent",
+        "department": "FinOps",
+        "requiredOutputs": [
+          "finops_approved",
+          "finops_notes"
+        ],
+        "compensateAction": "release_reserved_cloud_budget"
+      }
+    },
+    {
+      "id": "gw_dept_join",
+      "kind": "parallelGateway",
+      "name": "Join Multi-Department Sign-Offs"
+    },
+    {
+      "id": "gw_dept_consensus",
+      "kind": "exclusiveGateway",
+      "name": "Verify Department Consensus"
+    },
+    {
+      "id": "task_human_approval",
+      "kind": "userTask",
+      "name": "Human Executive Approval Gate (Switch Room)",
+      "description": "Mandatory human-only sign-off in Switch Room (@eng-manager or @ciso)",
+      "executor": {
+        "kind": "human",
+        "actor": "@eng-manager",
+        "department": "Executive",
+        "requiredOutputs": [
+          "human_approved",
+          "human_comment"
+        ]
+      }
+    },
+    {
+      "id": "gw_human_decision",
+      "kind": "exclusiveGateway",
+      "name": "Route by Human Decision"
+    },
+    {
+      "id": "task_sre_execute",
+      "kind": "serviceTask",
+      "name": "SRE Production Rollout & Verification",
+      "description": "@sre-agent applies infrastructure/release changes and posts verification metrics",
+      "executor": {
+        "kind": "agent",
+        "actor": "@sre-agent",
+        "department": "SRE",
+        "requiredOutputs": [
+          "deployment_id",
+          "rollout_status"
+        ],
+        "compensateAction": "rollback_deployment_and_restore_snapshot"
+      }
+    },
+    {
+      "id": "end_approved",
+      "kind": "endEvent",
+      "name": "Operation Deployed & Audited",
+      "outcome": "approved"
+    },
+    {
+      "id": "end_rejected",
+      "kind": "endEvent",
+      "name": "Operation Halted by Governance",
+      "outcome": "rejected"
+    }
+  ],
+  "flows": [
+    {
+      "id": "f1",
+      "from": "start_request",
+      "to": "task_sre_triage"
+    },
+    {
+      "id": "f2",
+      "from": "task_sre_triage",
+      "to": "rule_dmn_gate"
+    },
+    {
+      "id": "f3",
+      "from": "rule_dmn_gate",
+      "to": "gw_verdict_route"
+    },
+    {
+      "id": "f4_auto",
+      "from": "gw_verdict_route",
+      "to": "task_sre_execute",
+      "name": "Green Lane Auto-Approve",
+      "condition": "governance.verdict = \"auto_approve\""
+    },
+    {
+      "id": "f4_escalate",
+      "from": "gw_verdict_route",
+      "to": "gw_dept_fork",
+      "name": "Multi-Department Escalation",
+      "condition": "governance.verdict = \"require_dept_signoff\" or governance.verdict = \"require_exec_and_dept_signoff\""
+    },
+    {
+      "id": "f4_reject",
+      "from": "gw_verdict_route",
+      "to": "end_rejected",
+      "name": "Policy Reject",
+      "isDefault": true
+    },
+    {
+      "id": "f5_fork_sec",
+      "from": "gw_dept_fork",
+      "to": "task_sec_audit"
+    },
+    {
+      "id": "f5_fork_fin",
+      "from": "gw_dept_fork",
+      "to": "task_finops_audit"
+    },
+    {
+      "id": "f6_join_sec",
+      "from": "task_sec_audit",
+      "to": "gw_dept_join"
+    },
+    {
+      "id": "f6_join_fin",
+      "from": "task_finops_audit",
+      "to": "gw_dept_join"
+    },
+    {
+      "id": "f7",
+      "from": "gw_dept_join",
+      "to": "gw_dept_consensus"
+    },
+    {
+      "id": "f8_consensus_ok",
+      "from": "gw_dept_consensus",
+      "to": "task_human_approval",
+      "name": "Both Departments Approved",
+      "condition": "sec_approved = true and finops_approved = true"
+    },
+    {
+      "id": "f8_consensus_veto",
+      "from": "gw_dept_consensus",
+      "to": "end_rejected",
+      "name": "Department Veto",
+      "isDefault": true
+    },
+    {
+      "id": "f9",
+      "from": "task_human_approval",
+      "to": "gw_human_decision"
+    },
+    {
+      "id": "f10_human_ok",
+      "from": "gw_human_decision",
+      "to": "task_sre_execute",
+      "name": "Human Executive Approved",
+      "condition": "human_approved = true"
+    },
+    {
+      "id": "f10_human_reject",
+      "from": "gw_human_decision",
+      "to": "end_rejected",
+      "name": "Human Executive Rejected",
+      "isDefault": true
+    },
+    {
+      "id": "f11",
+      "from": "task_sre_execute",
+      "to": "end_approved"
+    }
+  ]
+}

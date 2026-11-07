@@ -1,0 +1,34 @@
+flowchart TB
+    subgraph Chat["Team Chat Platforms (Slack · Mattermost · Discord · MS Teams)"]
+        Humans["👤 Human Teammates<br/>(@alice-devops, @eng-manager, @ciso)"]
+    end
+
+    subgraph SwitchCore["Switch AI Infrastructure (sandbox-quantum/switch)"]
+        CollabBridge["Collaboration Bridge<br/>(Puppets, Threads & Room History)"]
+        SwitchRoom["Switch Room (#switch-ops-room)<br/>PostgreSQL Message Bus"]
+        AgentBridge["Agent Bridge + Switch Console"]
+        CollabBridge <--> SwitchRoom <--> AgentBridge
+    end
+
+    subgraph Agents["Switch Room Custom Agents (Claude Code / Antigravity / Codex)"]
+        SRE["🤖 @sre-agent<br/>(SRE Department)"]
+        SEC["🔐 @sec-agent<br/>(Security Department)"]
+        FIN["💰 @finops-agent<br/>(FinOps Department)"]
+        POL["📐 @policy-agent<br/>(Policy Architect)"]
+    end
+
+    subgraph Cortex["⚡ SwitchCortex MCP Server (stdio & HTTP /mcp)"]
+        MCP["12 Deterministic MCP Tools & XML Resources"]
+        BPMN["BPMN 2.0 Engine<br/>+ Petri-Net Soundness Verifier"]
+        DMN["DMN 1.3 Decision Engine<br/>+ Overlap/Gap Static Analyzer"]
+        FEEL["FEEL Expression Evaluator<br/>(Zero eval, Step-Budgeted)"]
+        Guard["Smart Guardrails · Sticky Taint<br/>humanOnly Gates · Reverse Undo"]
+        Ledger["SHA-256 Hash-Chained<br/>Audit Ledger"]
+        MCP --> BPMN & DMN & Guard
+        BPMN --> DMN --> FEEL
+        Guard --> Ledger
+    end
+
+    Humans <--> CollabBridge
+    AgentBridge <--> SRE & SEC & FIN & POL
+    SRE & SEC & FIN & POL <-->|"Model Context Protocol (MCP)"| MCP

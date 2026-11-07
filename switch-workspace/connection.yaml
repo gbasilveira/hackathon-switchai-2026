@@ -1,0 +1,30 @@
+# ILLUSTRATIVE REFERENCE ONLY — not a Switch-native schema. Agents are onboarded in Switch Console
+# (see docs/SWITCH_SETUP.md); this file documents the intended roles and scopes.
+# Switch Service Connection v2 Schema (sandbox-quantum/switch)
+# Isolates governance API tokens and audit signing keys from raw agent transcripts.
+apiVersion: switch.sandboxaq.com/v2
+kind: ServiceConnection
+metadata:
+  id: switch-cortex-governance
+  name: SwitchCortex Deterministic BPMN/DMN Engine
+  category: governance-and-orchestration
+spec:
+  auth:
+    type: api_key
+    headerName: X-Cortex-Operator-Token
+    secretRef: CORTEX_OPERATOR_TOKEN
+  endpoints:
+    mcpHttpUrl: "http://localhost:4100/mcp"
+    healthUrl: "http://localhost:4100/health"
+    studioUiUrl: "http://localhost:4100/"
+  securityScopes:
+    - name: workflow:propose
+      allowedActors: ["@sre-agent", "@sec-agent", "@finops-agent"]
+    - name: policy:verify
+      allowedActors: ["@policy-agent", "@eng-manager", "@ciso"]
+    - name: inbox:human_approve
+      humanOnly: true
+      allowedActors: ["@eng-manager", "@ciso"]
+    - name: supervision:kill_switch
+      humanOnly: true
+      allowedActors: ["@eng-manager", "@ciso"]

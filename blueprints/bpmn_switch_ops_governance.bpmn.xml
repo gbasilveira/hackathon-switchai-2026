@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:cortex="urn:switch-cortex:bpmn:2.0"
+             id="bpmn_switch_ops_governance_defs"
+             targetNamespace="urn:switch-cortex:bpmn:2.0">
+  <process id="bpmn_switch_ops_governance" name="Switch Room Multi-Department Release &amp; FinOps/SecOps Workflow" isExecutable="true">
+    <startEvent id="start_request" name="Switch Room Request Received" />
+    <serviceTask id="task_sre_triage" name="SRE Triage &amp; Telemetry Extraction" cortex:actor="@sre-agent" cortex:department="SRE" />
+    <businessRuleTask id="rule_dmn_gate" name="DMN 1.3 Governance Policy Gate" cortex:decisionRef="dmn_release_and_infra_governance" cortex:resultVariable="governance" />
+    <exclusiveGateway id="gw_verdict_route" name="Route by DMN Verdict" />
+    <parallelGateway id="gw_dept_fork" name="Fork Parallel Multi-Department Review" />
+    <serviceTask id="task_sec_audit" name="Security &amp; Compliance Audit" cortex:actor="@sec-agent" cortex:department="Security" />
+    <serviceTask id="task_finops_audit" name="FinOps Cloud Cost &amp; Quota Review" cortex:actor="@finops-agent" cortex:department="FinOps" />
+    <parallelGateway id="gw_dept_join" name="Join Multi-Department Sign-Offs" />
+    <exclusiveGateway id="gw_dept_consensus" name="Verify Department Consensus" />
+    <userTask id="task_human_approval" name="Human Executive Approval Gate (Switch Room)" cortex:actor="@eng-manager" cortex:department="Executive" cortex:humanOnly="true" />
+    <exclusiveGateway id="gw_human_decision" name="Route by Human Decision" />
+    <serviceTask id="task_sre_execute" name="SRE Production Rollout &amp; Verification" cortex:actor="@sre-agent" cortex:department="SRE" />
+    <endEvent id="end_approved" name="Operation Deployed &amp; Audited" />
+    <endEvent id="end_rejected" name="Operation Halted by Governance" />
+    <sequenceFlow id="f1" sourceRef="start_request" targetRef="task_sre_triage" />
+    <sequenceFlow id="f2" sourceRef="task_sre_triage" targetRef="rule_dmn_gate" />
+    <sequenceFlow id="f3" sourceRef="rule_dmn_gate" targetRef="gw_verdict_route" />
+    <sequenceFlow id="f4_auto" sourceRef="gw_verdict_route" targetRef="task_sre_execute" name="Green Lane Auto-Approve">
+      <conditionExpression xsi:type="tFormalExpression">governance.verdict = &quot;auto_approve&quot;</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="f4_escalate" sourceRef="gw_verdict_route" targetRef="gw_dept_fork" name="Multi-Department Escalation">
+      <conditionExpression xsi:type="tFormalExpression">governance.verdict = &quot;require_dept_signoff&quot; or governance.verdict = &quot;require_exec_and_dept_signoff&quot;</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="f4_reject" sourceRef="gw_verdict_route" targetRef="end_rejected" name="Policy Reject" />
+    <sequenceFlow id="f5_fork_sec" sourceRef="gw_dept_fork" targetRef="task_sec_audit" />
+    <sequenceFlow id="f5_fork_fin" sourceRef="gw_dept_fork" targetRef="task_finops_audit" />
+    <sequenceFlow id="f6_join_sec" sourceRef="task_sec_audit" targetRef="gw_dept_join" />
+    <sequenceFlow id="f6_join_fin" sourceRef="task_finops_audit" targetRef="gw_dept_join" />
+    <sequenceFlow id="f7" sourceRef="gw_dept_join" targetRef="gw_dept_consensus" />
+    <sequenceFlow id="f8_consensus_ok" sourceRef="gw_dept_consensus" targetRef="task_human_approval" name="Both Departments Approved">
+      <conditionExpression xsi:type="tFormalExpression">sec_approved = true and finops_approved = true</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="f8_consensus_veto" sourceRef="gw_dept_consensus" targetRef="end_rejected" name="Department Veto" />
+    <sequenceFlow id="f9" sourceRef="task_human_approval" targetRef="gw_human_decision" />
+    <sequenceFlow id="f10_human_ok" sourceRef="gw_human_decision" targetRef="task_sre_execute" name="Human Executive Approved">
+      <conditionExpression xsi:type="tFormalExpression">human_approved = true</conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="f10_human_reject" sourceRef="gw_human_decision" targetRef="end_rejected" name="Human Executive Rejected" />
+    <sequenceFlow id="f11" sourceRef="task_sre_execute" targetRef="end_approved" />
+  </process>
+</definitions>

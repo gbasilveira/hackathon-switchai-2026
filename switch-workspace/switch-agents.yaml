@@ -1,0 +1,52 @@
+# ILLUSTRATIVE REFERENCE ONLY — not a Switch-native schema. Agents are onboarded in Switch Console
+# (see docs/SWITCH_SETUP.md); this file documents the intended roles and scopes.
+# Switch AI Console — Multi-Department Custom Agents Configuration
+# Compatible with sandbox-quantum/switch (https://docs.switchagents.ai)
+version: "2.0"
+room:
+  name: "switch-ops-room"
+  platform_bridges:
+    - mattermost
+    - slack
+    - discord
+  shared_mcp_servers:
+    - name: switch-cortex
+      transport: stdio
+      command: "node"
+      args: ["../../dist/src/cli/index.js", "mcp"]
+    - name: switch-docs
+      transport: http
+      url: "https://docs.switchagents.ai/mcp"
+
+agents:
+  - name: "sre-agent"
+    display_name: "SRE & Infrastructure Agent"
+    department: "SRE"
+    harness: "claude-code"
+    working_directory: "./switch-workspace/agents/sre-agent"
+    instructions_file: "./switch-workspace/agents/sre-agent/CLAUDE.md"
+    description: "Triages operational requests, extracts blast-radius telemetry, and executes approved BPMN rollouts."
+
+  - name: "sec-agent"
+    display_name: "Security & Compliance Agent"
+    department: "Security"
+    harness: "claude-code"
+    working_directory: "./switch-workspace/agents/sec-agent"
+    instructions_file: "./switch-workspace/agents/sec-agent/CLAUDE.md"
+    description: "Performs CVE, container signature, IAM, and PII boundary audits on parallel BPMN branches."
+
+  - name: "finops-agent"
+    display_name: "FinOps & Cloud Budget Agent"
+    department: "FinOps"
+    harness: "claude-code"
+    working_directory: "./switch-workspace/agents/finops-agent"
+    instructions_file: "./switch-workspace/agents/finops-agent/CLAUDE.md"
+    description: "Evaluates monthly cloud spend deltas against department budgets and reserves quota on parallel BPMN branches."
+
+  - name: "policy-agent"
+    display_name: "BPMN & DMN Policy Architect Agent"
+    department: "Governance"
+    harness: "claude-code"
+    working_directory: "./switch-workspace/agents/policy-agent"
+    instructions_file: "./switch-workspace/agents/policy-agent/CLAUDE.md"
+    description: "Drafts and formally verifies DMN 1.3 decision tables and BPMN 2.0 workflows via SwitchCortex static verifiers."

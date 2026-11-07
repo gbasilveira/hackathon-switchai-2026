@@ -1,0 +1,242 @@
+{
+  "id": "dmn_release_and_infra_governance",
+  "version": "1.0.0",
+  "name": "Multi-Department Release & Cloud Infrastructure Governance",
+  "description": "Deterministic DMN 1.3 decision table governing automatic vs. multi-department human-gated operations in Switch AI rooms.",
+  "hitPolicy": "PRIORITY",
+  "inputs": [
+    {
+      "id": "in_env",
+      "label": "Target Environment",
+      "expression": "env",
+      "type": "string",
+      "allowedValues": [
+        "dev",
+        "staging",
+        "prod"
+      ],
+      "required": true
+    },
+    {
+      "id": "in_cost",
+      "label": "Monthly Cost Delta ($)",
+      "expression": "cost_delta",
+      "type": "number",
+      "required": true
+    },
+    {
+      "id": "in_pii",
+      "label": "Touches Customer PII",
+      "expression": "touches_pii",
+      "type": "boolean",
+      "required": true
+    },
+    {
+      "id": "in_public",
+      "label": "Public Network Exposure",
+      "expression": "public_exposure",
+      "type": "boolean",
+      "required": true
+    },
+    {
+      "id": "in_conf",
+      "label": "Agent Proposal Confidence",
+      "expression": "confidence",
+      "type": "number",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "id": "out_verdict",
+      "name": "verdict",
+      "label": "Governance Verdict",
+      "type": "string",
+      "allowedValues": [
+        "reject",
+        "require_exec_and_dept_signoff",
+        "require_dept_signoff",
+        "auto_approve"
+      ]
+    },
+    {
+      "id": "out_approver",
+      "name": "required_approver",
+      "label": "Required Human Approver",
+      "type": "string",
+      "allowedValues": [
+        "none",
+        "@eng-manager",
+        "@ciso"
+      ]
+    },
+    {
+      "id": "out_note",
+      "name": "policy_note",
+      "label": "Policy Justification",
+      "type": "string"
+    }
+  ],
+  "rules": [
+    {
+      "id": "R1_BLOCK_PUBLIC_PII",
+      "description": "Hard invariant: Never allow public exposure when touching customer PII",
+      "inputEntries": [
+        "-",
+        "-",
+        "true",
+        "true",
+        "-"
+      ],
+      "outputEntries": [
+        "\"reject\"",
+        "\"none\"",
+        "\"Hard compliance invariant violated: PII workload cannot have public network exposure\""
+      ]
+    },
+    {
+      "id": "R2_BLOCK_EXCESSIVE_COST",
+      "description": "Hard budget cap: Reject any single tactical request exceeding $10,000/mo",
+      "inputEntries": [
+        "-",
+        "> 10000",
+        "-",
+        "-",
+        "-"
+      ],
+      "outputEntries": [
+        "\"reject\"",
+        "\"none\"",
+        "\"Tactical cost ceiling exceeded (> $10,000/mo); requires quarterly architecture board\""
+      ]
+    },
+    {
+      "id": "R3_LOW_CONFIDENCE_ESCALATION",
+      "description": "Conservative AI guardrail: Below 0.80 confidence always escalates to human + departments",
+      "inputEntries": [
+        "-",
+        "<= 10000",
+        "-",
+        "false",
+        "< 0.80"
+      ],
+      "outputEntries": [
+        "\"require_dept_signoff\"",
+        "\"@eng-manager\"",
+        "\"Agent confidence below 0.80 threshold; escalated to Security, FinOps & Engineering Manager\""
+      ]
+    },
+    {
+      "id": "R4_LOW_CONFIDENCE_PUBLIC_NON_PII",
+      "description": "Low confidence on non-PII public endpoint also escalates to CISO",
+      "inputEntries": [
+        "-",
+        "<= 10000",
+        "false",
+        "true",
+        "< 0.80"
+      ],
+      "outputEntries": [
+        "\"require_exec_and_dept_signoff\"",
+        "\"@ciso\"",
+        "\"Low-confidence public endpoint change requires Security, FinOps & CISO approval\""
+      ]
+    },
+    {
+      "id": "R5_PROD_PII_CISO_GATE",
+      "description": "Production changes touching internal PII require multi-department review + CISO sign-off",
+      "inputEntries": [
+        "\"prod\"",
+        "<= 10000",
+        "true",
+        "false",
+        ">= 0.80"
+      ],
+      "outputEntries": [
+        "\"require_exec_and_dept_signoff\"",
+        "\"@ciso\"",
+        "\"Production PII access requires parallel Security + FinOps review and CISO human sign-off\""
+      ]
+    },
+    {
+      "id": "R6_PROD_STANDARD_MULTI_DEPT",
+      "description": "All production changes or medium-cost changes ($101..$10,000) require Security + FinOps + Eng Manager",
+      "inputEntries": [
+        "\"prod\"",
+        "<= 10000",
+        "false",
+        "-",
+        ">= 0.80"
+      ],
+      "outputEntries": [
+        "\"require_dept_signoff\"",
+        "\"@eng-manager\"",
+        "\"Production operation requires parallel @sec-agent + @finops-agent audit and @eng-manager sign-off\""
+      ]
+    },
+    {
+      "id": "R7_NON_PROD_HIGH_COST_OR_PII",
+      "description": "Staging/Dev changes over $100/mo or touching internal PII require multi-department review",
+      "inputEntries": [
+        "\"dev\", \"staging\"",
+        "[101..10000]",
+        "-",
+        "false",
+        ">= 0.80"
+      ],
+      "outputEntries": [
+        "\"require_dept_signoff\"",
+        "\"@eng-manager\"",
+        "\"Non-prod spend > $100/mo requires @finops-agent + @sec-agent review and @eng-manager approval\""
+      ]
+    },
+    {
+      "id": "R8_NON_PROD_PII_INTERNAL",
+      "description": "Staging/Dev changes touching internal PII even at low cost require multi-department review",
+      "inputEntries": [
+        "\"dev\", \"staging\"",
+        "<= 100",
+        "true",
+        "false",
+        ">= 0.80"
+      ],
+      "outputEntries": [
+        "\"require_dept_signoff\"",
+        "\"@eng-manager\"",
+        "\"Internal PII dataset usage in non-prod requires Security + FinOps review\""
+      ]
+    },
+    {
+      "id": "R9_NON_PROD_PUBLIC_LOW_COST",
+      "description": "Staging/Dev public exposure without PII over $100/mo requires department review",
+      "inputEntries": [
+        "\"dev\", \"staging\"",
+        "[101..10000]",
+        "false",
+        "true",
+        ">= 0.80"
+      ],
+      "outputEntries": [
+        "\"require_dept_signoff\"",
+        "\"@eng-manager\"",
+        "\"Public non-prod endpoint > $100/mo requires Security + FinOps sign-off\""
+      ]
+    },
+    {
+      "id": "R10_GREEN_LANE_AUTO_APPROVE",
+      "description": "Green Lane: Dev/Staging, cost <= $100/mo, no PII, confidence >= 0.80 -> 100% Automatic Approval",
+      "inputEntries": [
+        "\"dev\", \"staging\"",
+        "<= 100",
+        "false",
+        "-",
+        ">= 0.80"
+      ],
+      "outputEntries": [
+        "\"auto_approve\"",
+        "\"none\"",
+        "\"Green Lane Fast-Track: Low-cost non-prod change with high confidence and zero PII\""
+      ]
+    }
+  ]
+}
