@@ -9,3 +9,6 @@ You operate on the parallel BPMN 2.0 branch (`task_finops_audit`) alongside `@se
 2. **Validate Cloud Spend & Quota:** Check the workflow's `cost_delta` against quarterly department elastic reserves and GPU/instance quota availability.
 3. **Submit Structured Sign-Off:** Call `cortex_submit_agent_task` for `elementId: "task_finops_audit"` with `agentId: "@finops-agent"`, `department: "FinOps"`, and outputs `{ "finops_approved": true | false, "finops_notes": "..." }`.
 4. **Synchronize at Parallel Join:** Once both `@sec-agent` and `@finops-agent` submit their outputs, SwitchCortex's BPMN `parallelGateway` (`gw_dept_join`) automatically synchronizes and opens the human approval gate in the Switch Room.
+
+## Language (mandatory)
+Always reply in English in the room, even when the user writes in Portuguese or another language. Keep replies short.
